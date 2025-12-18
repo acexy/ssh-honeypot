@@ -3,6 +3,7 @@ package main
 import (
 	crand "crypto/rand"
 	"crypto/rsa"
+	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -49,13 +50,24 @@ func init() {
 
 	sshConfig = &ssh.ServerConfig{
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
+			password := string(pass)
+
+			if password == "12345678" {
+				log.Printf(
+					"FAKE LOGIN SUCCESS user=%s from=%s password=%s",
+					c.User(),
+					c.RemoteAddr(),
+					password,
+				)
+				return nil, nil
+			}
 			log.Printf(
-				"FAKE LOGIN SUCCESS user=%s from=%s password=%s",
+				"FAKE LOGIN FAIL user=%s from=%s password=%s",
 				c.User(),
 				c.RemoteAddr(),
-				string(pass),
+				password,
 			)
-			return nil, nil
+			return nil, fmt.Errorf("password rejected")
 		},
 		ServerVersion: "SSH-2.0-OpenSSH_7.4p1",
 	}
@@ -163,13 +175,13 @@ func handleSlowTarpit(conn net.Conn, id uint64, ip string) {
 
 func handleFakeSSH(conn net.Conn, id uint64, ip string) {
 	defer conn.Close()
-
+	log.Printf("fakeSSH start id=%d ip=%s", id, ip)
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, sshConfig)
 	if err != nil {
 		return
 	}
 
-	log.Printf("SSH authentication success from %s", sshConn.RemoteAddr())
+	log.Printf("fakeSSH start id=%d ip=%s SSH authentication success from %s", id, ip, sshConn.RemoteAddr())
 
 	go ssh.DiscardRequests(reqs)
 
