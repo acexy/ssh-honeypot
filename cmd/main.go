@@ -156,9 +156,9 @@ func randDuration(min, max time.Duration) time.Duration {
 func handleSlowTarpit(conn net.Conn, id uint64, ip string) {
 	defer conn.Close()
 
-	perByteDelay := randDuration(100*time.Millisecond, 1500*time.Millisecond)
+	perByteDelay := randDuration(100*time.Millisecond, 500*time.Millisecond)
 	bytesToSend := rand.Intn(len(slowBanner)-1) + 1
-	finalHold := randDuration(5*time.Second, 3*time.Minute)
+	finalHold := randDuration(5*time.Second, 1*time.Minute)
 	log.Printf("slow start id=%d ip=%s bytes=%d per_byte_delay=%s final_hold=%s", id, ip, bytesToSend, perByteDelay, finalHold)
 
 	for i := 0; i < bytesToSend; i++ {
