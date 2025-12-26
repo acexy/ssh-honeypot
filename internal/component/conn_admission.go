@@ -1,4 +1,4 @@
-package handler
+package component
 
 import (
 	"github.com/acexy/ssh-honeypot/core/types"

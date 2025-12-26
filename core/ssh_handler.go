@@ -2,21 +2,25 @@ package core
 
 import (
 	"github.com/acexy/ssh-honeypot/core/types"
-	"github.com/acexy/ssh-honeypot/internal/handler"
+	"github.com/acexy/ssh-honeypot/internal/component"
 )
 
-type SSHConnHandler interface {
+type HoneypotHandler interface {
 	ConnAdmission() types.ConnAdmissionComponent
+	VersionExchange() types.VersionExchangeComponent
 }
 
-type defaultSSHConnHandler struct {
+type defaultHoneypotHandler struct {
 }
 
-func (d *defaultSSHConnHandler) ConnAdmission() types.ConnAdmissionComponent {
-	return handler.NewDefaultConnAdmission()
+func (d *defaultHoneypotHandler) ConnAdmission() types.ConnAdmissionComponent {
+	return component.NewDefaultConnAdmission()
+}
+func (d *defaultHoneypotHandler) VersionExchange() types.VersionExchangeComponent {
+	return component.NewDefaultVersionExchangeComponent()
 }
 
-// NewDefaultSSHConnHandler 创建一个默认的 SSHConnHandler
-func NewDefaultSSHConnHandler() *defaultSSHConnHandler {
-	return &defaultSSHConnHandler{}
+// NewDefaultSSHConnHandler 创建一个默认的 HoneypotHandler
+func NewDefaultSSHConnHandler() *defaultHoneypotHandler {
+	return &defaultHoneypotHandler{}
 }
