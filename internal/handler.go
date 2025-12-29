@@ -1,15 +1,32 @@
 package internal
 
 import (
+	"fmt"
 	"net"
+	"strings"
 
 	"github.com/acexy/golang-toolkit/logger"
 	"github.com/acexy/golang-toolkit/math/conversion"
 	"github.com/acexy/ssh-honeypot/consts"
 	"github.com/acexy/ssh-honeypot/core"
 	"github.com/acexy/ssh-honeypot/core/types"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
+
+func init() {
+	logger.EnableConsoleWithFormatter(logger.TraceLevel, logger.NewFormatter(func(trace logger.TraceIdSupplier, entry *logrus.Entry) ([]byte, error) {
+		// 格式化时间戳，保留毫秒部分
+		timestamp := entry.Time.Format("2006-01-02 15:04:05.000")
+		// 格式化日志等级，大写右对齐
+		level := strings.ToUpper(entry.Level.String())
+		if len(level) > 5 {
+			level = level[:5]
+		}
+		log := fmt.Sprintf("%s [%-5s] %s\n", timestamp, level, entry.Message)
+		return []byte(log), nil
+	}))
+}
 
 type honeypot struct {
 	listenedIP   string
@@ -73,7 +90,7 @@ func (h *honeypot) Execute() {
 	if err != nil {
 		logger.Logrus().Fatalln(err)
 	}
-	logger.Logrus().Infof("listened: [%d]\n", h.listenedPort)
+	logger.Logrus().Infof("honeypot started listened: [%d]", h.listenedPort)
 	go func() {
 		for {
 			conn, err := l.Accept()
@@ -125,7 +142,7 @@ func (h *honeypot) handleConn(conn net.Conn) {
 		logger.Logrus().Errorf("client: [%s]-> honeypot: [%d] - ssh error: %v", request.IPInfo(), h.listenedPort, err)
 		return
 	}
-	h.HandleSSHConn(sshConn, channels, requests)
+	h.handleSSHConn(sshConn, channels, requests)
 }
 
 func (h *honeypot) getSSHConfig(request *types.SSHRequest, serverVersion string) *ssh.ServerConfig {
@@ -177,9 +194,10 @@ func (h *honeypot) getSSHConfig(request *types.SSHRequest, serverVersion string)
 	config.AddHostKey(signer)
 	return config
 }
-func (h *honeypot) HandleSSHConn(sshConn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+func (h *honeypot) handleSSHConn(sshConn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 	// 丢弃全局请求（keepalive 等）
 	go ssh.DiscardRequests(requests)
+	_ = sshConn.Close()
 }
 
 // 检查连接权限
