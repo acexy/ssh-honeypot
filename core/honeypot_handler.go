@@ -1,14 +1,14 @@
 package core
 
 import (
-	"github.com/acexy/ssh-honeypot/core/types"
-	"github.com/acexy/ssh-honeypot/internal/component"
+	"github.com/acexy/golang-toolkit/sys"
+	"github.com/acexy/ssh-Honeypot/core/types"
+	"github.com/acexy/ssh-Honeypot/internal"
+	"github.com/acexy/ssh-Honeypot/internal/component"
 )
 
-type HoneypotHandler interface {
-	ConnAdmission() types.ConnAdmissionComponent
-	VersionExchange() types.VersionExchangeComponent
-	SSHSettings() types.SSHSettingsComponent
+type honeypot struct {
+	h *internal.Honeypot
 }
 
 type defaultHoneypotHandler struct {
@@ -28,4 +28,13 @@ func (d *defaultHoneypotHandler) SSHSettings() types.SSHSettingsComponent {
 // NewDefaultSSHConnHandler 创建一个默认的 HoneypotHandler
 func NewDefaultSSHConnHandler() *defaultHoneypotHandler {
 	return &defaultHoneypotHandler{}
+}
+
+func NewHoneypot(handler types.HoneypotHandler) *honeypot {
+	return &honeypot{h: internal.NewHoneypot(handler)}
+}
+
+func (h *honeypot) Execute() {
+	h.h.Execute()
+	sys.ShutdownHolding()
 }

@@ -3,8 +3,8 @@ package component
 import (
 	"github.com/acexy/golang-toolkit/crypto/asymmetric"
 	"github.com/acexy/golang-toolkit/logger"
-	"github.com/acexy/ssh-honeypot/consts"
-	"github.com/acexy/ssh-honeypot/core/types"
+	"github.com/acexy/ssh-Honeypot/consts"
+	"github.com/acexy/ssh-Honeypot/core/types"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -44,9 +44,9 @@ type defaultSSHPasswordAuthStrategy struct {
 
 func (d *defaultSSHPasswordAuthStrategy) Auth(request *types.SSHRequest, password string) (*ssh.Permissions, error) {
 	if password == consts.DefaultPassword {
-		logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - accepted: password auth", request.IPInfo(), request.Port)
+		logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - accepted: password auth", request.IPInfo(), request.ListenedPort)
 		return nil, nil
 	}
-	logger.Logrus().Warningf("client: [%s]-> honeypot: [%d] - rejected: password auth", request.IPInfo(), request.Port)
+	logger.Logrus().Warningf("client: [%s]-> honeypot: [%d] - rejected: password auth", request.IPInfo(), request.ListenedPort)
 	return nil, consts.ErrAuthFailed
 }

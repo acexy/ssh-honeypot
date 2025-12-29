@@ -7,9 +7,8 @@ import (
 
 	"github.com/acexy/golang-toolkit/logger"
 	"github.com/acexy/golang-toolkit/math/conversion"
-	"github.com/acexy/ssh-honeypot/consts"
-	"github.com/acexy/ssh-honeypot/core"
-	"github.com/acexy/ssh-honeypot/core/types"
+	"github.com/acexy/ssh-Honeypot/consts"
+	"github.com/acexy/ssh-Honeypot/core/types"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -28,7 +27,7 @@ func init() {
 	}))
 }
 
-type honeypot struct {
+type Honeypot struct {
 	listenedIP   string
 	listenedPort int
 
@@ -46,11 +45,11 @@ type honeypot struct {
 	sshConfig   *ssh.ServerConfig
 }
 
-func NewHoneypot(handler core.HoneypotHandler) *honeypot {
+func NewHoneypot(handler types.HoneypotHandler) *Honeypot {
 	if handler == nil {
 		logger.Logrus().Fatalln("handler cannot be nil")
 	}
-	h := honeypot{
+	h := Honeypot{
 		listenedPort: 22,
 	}
 	h.connAdmission = handler.ConnAdmission()
@@ -65,7 +64,7 @@ func NewHoneypot(handler core.HoneypotHandler) *honeypot {
 	return &h
 }
 
-func (h *honeypot) checkHandler() {
+func (h *Honeypot) checkHandler() {
 	if h.connAdmission == nil {
 		logger.Logrus().Fatalln("connAdmission cannot be nil")
 	}
@@ -85,17 +84,17 @@ func (h *honeypot) checkHandler() {
 	}
 }
 
-func (h *honeypot) Execute() {
+func (h *Honeypot) Execute() {
 	l, err := net.Listen("tcp", h.listenedIP+":"+conversion.FromInt(h.listenedPort))
 	if err != nil {
 		logger.Logrus().Fatalln(err)
 	}
-	logger.Logrus().Infof("honeypot started listened: [%d]", h.listenedPort)
+	logger.Logrus().Infof("Honeypot started listened: [%d]", h.listenedPort)
 	go func() {
 		for {
 			conn, err := l.Accept()
 			if err != nil {
-				logger.Logrus().Errorf("honeypot: [%d] - accept error err=%v", h.listenedPort, err)
+				logger.Logrus().Errorf("Honeypot: [%d] - accept error err=%v", h.listenedPort, err)
 				continue
 			}
 			go h.handleConn(conn)
@@ -103,15 +102,16 @@ func (h *honeypot) Execute() {
 	}()
 }
 
-func (h *honeypot) handleConn(conn net.Conn) {
+func (h *Honeypot) handleConn(conn net.Conn) {
 	defer func() {
 		_ = conn.Close()
 	}()
 
 	addr := conn.RemoteAddr().(*net.TCPAddr)
 	request := &types.SSHRequest{
-		IP:   addr.IP.String(),
-		Port: addr.Port,
+		ListenedPort: h.listenedPort,
+		IP:           addr.IP.String(),
+		Port:         addr.Port,
 	}
 	if !h.doConnAdmission(request) {
 		return
@@ -130,22 +130,22 @@ func (h *honeypot) handleConn(conn net.Conn) {
 		return
 	}
 	if err != nil {
-		logger.Logrus().Errorf("client: [%s]-> honeypot: [%d] - read client version error err=%v", request.IPInfo(), h.listenedPort, err)
+		logger.Logrus().Errorf("client: [%s]-> Honeypot: [%d] - read client version error err=%v", request.IPInfo(), h.listenedPort, err)
 		return
 	}
-	logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - accepted clientVersion: %s", request.IPInfo(), h.listenedPort, clientVersion)
+	logger.Logrus().Infof("client: [%s]-> Honeypot: [%d] - accepted clientVersion: %s", request.IPInfo(), h.listenedPort, clientVersion)
 	wrappedConn = &sshServerVersionHijackConn{
 		Conn: wrappedConn,
 	}
 	sshConn, channels, requests, err := ssh.NewServerConn(wrappedConn, h.getSSHConfig(request, serverVersion))
 	if err != nil {
-		logger.Logrus().Errorf("client: [%s]-> honeypot: [%d] - ssh error: %v", request.IPInfo(), h.listenedPort, err)
+		logger.Logrus().Errorf("client: [%s]-> Honeypot: [%d] - ssh error: %v", request.IPInfo(), h.listenedPort, err)
 		return
 	}
 	h.handleSSHConn(sshConn, channels, requests)
 }
 
-func (h *honeypot) getSSHConfig(request *types.SSHRequest, serverVersion string) *ssh.ServerConfig {
+func (h *Honeypot) getSSHConfig(request *types.SSHRequest, serverVersion string) *ssh.ServerConfig {
 	if h.sshConfig != nil {
 		return h.sshConfig
 	}
@@ -161,7 +161,7 @@ func (h *honeypot) getSSHConfig(request *types.SSHRequest, serverVersion string)
 
 	if config.NoClientAuth {
 		config.NoClientAuthCallback = func(metadata ssh.ConnMetadata) (*ssh.Permissions, error) {
-			logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - accepted: NoClientAuth", request.IPInfo(), h.listenedPort)
+			logger.Logrus().Infof("client: [%s]-> Honeypot: [%d] - accepted: NoClientAuth", request.IPInfo(), h.listenedPort)
 			return nil, nil
 		}
 	} else {
@@ -173,19 +173,19 @@ func (h *honeypot) getSSHConfig(request *types.SSHRequest, serverVersion string)
 		if passwordAuth != nil {
 			config.PasswordCallback = func(metadata ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 				pass := string(password)
-				logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - password auth: %s", request.IPInfo(), h.listenedPort, pass)
+				logger.Logrus().Infof("client: [%s]-> Honeypot: [%d] - password auth: %s", request.IPInfo(), h.listenedPort, pass)
 				return passwordAuth.Auth(request, pass)
 			}
 		}
 		if publicAuth != nil {
 			config.PublicKeyCallback = func(metadata ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 				fingerprint := ssh.FingerprintLegacyMD5(key)
-				logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - pubkey auth: pre check fingerprint: %s", request.IPInfo(), h.listenedPort, fingerprint)
+				logger.Logrus().Infof("client: [%s]-> Honeypot: [%d] - pubkey auth: pre check fingerprint: %s", request.IPInfo(), h.listenedPort, fingerprint)
 				return publicAuth.KeyPreCheck(request, key)
 			}
 			config.VerifiedPublicKeyCallback = func(metadata ssh.ConnMetadata, key ssh.PublicKey, permissions *ssh.Permissions, signatureAlgorithm string) (*ssh.Permissions, error) {
 				fingerprint := ssh.FingerprintLegacyMD5(key)
-				logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - pubkey auth: verify signed data fingerprint: %s", request.IPInfo(), h.listenedPort, fingerprint)
+				logger.Logrus().Infof("client: [%s]-> Honeypot: [%d] - pubkey auth: verify signed data fingerprint: %s", request.IPInfo(), h.listenedPort, fingerprint)
 				return publicAuth.VerifySignedData(request, key, permissions, signatureAlgorithm)
 			}
 		}
@@ -194,44 +194,44 @@ func (h *honeypot) getSSHConfig(request *types.SSHRequest, serverVersion string)
 	config.AddHostKey(signer)
 	return config
 }
-func (h *honeypot) handleSSHConn(sshConn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+func (h *Honeypot) handleSSHConn(sshConn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 	// 丢弃全局请求（keepalive 等）
 	go ssh.DiscardRequests(requests)
 	_ = sshConn.Close()
 }
 
 // 检查连接权限
-func (h *honeypot) doConnAdmission(request *types.SSHRequest) bool {
+func (h *Honeypot) doConnAdmission(request *types.SSHRequest) bool {
 	allow := h.connAdmission.AllowConn(request)
 	if !allow {
-		logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - rejected", request.IPInfo(), h.listenedPort)
+		logger.Logrus().Infof("client: [%s]-> Honeypot: [%d] - rejected", request.IPInfo(), h.listenedPort)
 	}
 	return allow
 }
 
 // 验证客户端版本
-func (h *honeypot) doVersionExchangeHandleClientVersion(clientVersion string, request *types.SSHRequest) bool {
+func (h *Honeypot) doVersionExchangeHandleClientVersion(clientVersion string, request *types.SSHRequest) bool {
 	name, strategy := h.versionExchange.ChooseHandleClientVersionStrategy(request, h.allClientVersionStrategies)
-	logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - choose handleClientStrategy: %s", request.IPInfo(), h.listenedPort, name)
+	logger.Logrus().Infof("client: [%s]-> Honeypot: [%d] - choose handleClientStrategy: %s", request.IPInfo(), h.listenedPort, name)
 	allow := strategy.HandleVersion(request, clientVersion)
 	if !allow {
-		logger.Logrus().Warningf("client: [%s]-> honeypot: [%d] - rejected clientVersion: %s", request.IPInfo(), h.listenedPort, clientVersion)
+		logger.Logrus().Warningf("client: [%s]-> Honeypot: [%d] - rejected clientVersion: %s", request.IPInfo(), h.listenedPort, clientVersion)
 	}
 	return allow
 }
 
 // 显示服务端版本
-func (h *honeypot) doVersionExchangeShowServerVersion(conn net.Conn, request *types.SSHRequest) (string, bool) {
+func (h *Honeypot) doVersionExchangeShowServerVersion(conn net.Conn, request *types.SSHRequest) (string, bool) {
 	name, strategy := h.versionExchange.ChooseShowServerVersionStrategy(request, h.allServerVersionStrategies)
-	logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - choose ShowServerVersionStrategy: %s", request.IPInfo(), h.listenedPort, name)
+	logger.Logrus().Infof("client: [%s]-> Honeypot: [%d] - choose ShowServerVersionStrategy: %s", request.IPInfo(), h.listenedPort, name)
 	allow, sec, serverVersion := strategy.ShowVersion(request)
 	if !allow {
-		logger.Logrus().Warningf("client: [%s]-> honeypot: [%d] - rejected", request.IPInfo(), h.listenedPort)
+		logger.Logrus().Warningf("client: [%s]-> Honeypot: [%d] - rejected", request.IPInfo(), h.listenedPort)
 		return serverVersion, allow
 	}
 	err := connResp(conn, serverVersion, sec)
 	if err != nil {
-		logger.Logrus().Warningf("client: [%s]-> honeypot: [%d] - delay error err=%v", request.IPInfo(), h.listenedPort, err)
+		logger.Logrus().Warningf("client: [%s]-> Honeypot: [%d] - delay error err=%v", request.IPInfo(), h.listenedPort, err)
 		return serverVersion, false
 	}
 	return serverVersion, allow

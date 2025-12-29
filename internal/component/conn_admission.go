@@ -1,7 +1,7 @@
 package component
 
 import (
-	"github.com/acexy/ssh-honeypot/core/types"
+	"github.com/acexy/ssh-Honeypot/core/types"
 )
 
 // ConnAdmissionComponent 默认的 TCP 连接准入控制 允许全部连接接入

@@ -1,13 +1,9 @@
 package main
 
 import (
-	"github.com/acexy/golang-toolkit/sys"
-	"github.com/acexy/ssh-honeypot/core"
-	"github.com/acexy/ssh-honeypot/internal"
+	"github.com/acexy/ssh-Honeypot/core"
 )
 
 func main() {
-	hp := internal.NewHoneypot(core.NewDefaultSSHConnHandler())
-	hp.Execute()
-	sys.ShutdownHolding()
+	core.NewHoneypot(core.NewDefaultSSHConnHandler()).Execute()
 }

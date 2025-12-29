@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/acexy/golang-toolkit/util/coll"
-	"github.com/acexy/ssh-honeypot/core/types"
+	"github.com/acexy/ssh-Honeypot/core/types"
 )
 
 const serverVersion = "SSH-2.0-OpenSSH_7.4p1 Ubuntu-18.04"
