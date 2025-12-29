@@ -3,7 +3,7 @@ module github.com/acexy/ssh-honeypot
 go 1.24.6
 
 require (
-	github.com/acexy/golang-toolkit v0.0.60-0.20251226033842-2d5044a10b15
+	github.com/acexy/golang-toolkit v0.0.60-0.20251229032446-693588550dc8
 	golang.org/x/crypto v0.46.0
 )
 

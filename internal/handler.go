@@ -5,8 +5,10 @@ import (
 
 	"github.com/acexy/golang-toolkit/logger"
 	"github.com/acexy/golang-toolkit/math/conversion"
+	"github.com/acexy/ssh-honeypot/consts"
 	"github.com/acexy/ssh-honeypot/core"
 	"github.com/acexy/ssh-honeypot/core/types"
+	"golang.org/x/crypto/ssh"
 )
 
 type honeypot struct {
@@ -14,12 +16,17 @@ type honeypot struct {
 	listenedPort int
 
 	// 组件
-	connAdmission   types.ConnAdmissionComponent
-	versionExchange types.VersionExchangeComponent
+	connAdmission types.ConnAdmissionComponent
 
+	// 版本交互
+	versionExchange types.VersionExchangeComponent
 	// 组件策略
 	allServerVersionStrategies map[string]types.ShowServerVersionStrategy
 	allClientVersionStrategies map[string]types.HandleClientVersionStrategy
+
+	// ssh 设置
+	sshSettings types.SSHSettingsComponent
+	sshConfig   *ssh.ServerConfig
 }
 
 func NewHoneypot(handler core.HoneypotHandler) *honeypot {
@@ -34,6 +41,8 @@ func NewHoneypot(handler core.HoneypotHandler) *honeypot {
 	h.versionExchange = handler.VersionExchange()
 	h.allClientVersionStrategies = h.versionExchange.ClientVersionStrategies()
 	h.allServerVersionStrategies = h.versionExchange.ServerVersionStrategies()
+
+	h.sshSettings = handler.SSHSettings()
 
 	h.checkHandler()
 	return &h
@@ -52,6 +61,10 @@ func (h *honeypot) checkHandler() {
 	}
 	if len(h.allServerVersionStrategies) == 0 {
 		logger.Logrus().Fatalln("versionExchange cannot be empty")
+	}
+
+	if h.sshSettings == nil {
+		logger.Logrus().Fatalln("sshSettings cannot be nil")
 	}
 }
 
@@ -79,32 +92,94 @@ func (h *honeypot) handleConn(conn net.Conn) {
 	}()
 
 	addr := conn.RemoteAddr().(*net.TCPAddr)
-	request := types.SSHRequest{
+	request := &types.SSHRequest{
 		IP:   addr.IP.String(),
 		Port: addr.Port,
 	}
-	if !h.doConnAdmission(&request) {
+	if !h.doConnAdmission(request) {
 		return
 	}
-	clientVersion, wrappedConn, err := readClientVersion(conn)
-	if err != nil {
-		logger.Logrus().Errorf("client: [%s]-> honeypot: [%d] - read client version error err=%v", request.IPInfo(), h.listenedPort, err)
-		return
-	}
-	if !h.doVersionExchangeHandleClientVersion(clientVersion, &request) {
-		return
-	}
-	wrappedConn = &sshServerVersionHijackConn{
-		Conn: wrappedConn,
-	}
-	logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - accepted clientVersion: %s", request.IPInfo(), h.listenedPort, clientVersion)
-	_, allow := h.doVersionExchangeShowServerVersion(wrappedConn, &request)
+
+	// 返回服务端版本
+	serverVersion, allow := h.doVersionExchangeShowServerVersion(conn, request)
 	if !allow {
 		return
 	}
 
-	// 交由ssh核心模块处理
+	// 读取客户端版本
+	clientVersion, wrappedConn, err := readClientVersion(conn)
+	if !h.doVersionExchangeHandleClientVersion(clientVersion, request) {
+		_ = connResp(conn, consts.BadClientVersionMessage, 0)
+		return
+	}
+	if err != nil {
+		logger.Logrus().Errorf("client: [%s]-> honeypot: [%d] - read client version error err=%v", request.IPInfo(), h.listenedPort, err)
+		return
+	}
+	logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - accepted clientVersion: %s", request.IPInfo(), h.listenedPort, clientVersion)
+	wrappedConn = &sshServerVersionHijackConn{
+		Conn: wrappedConn,
+	}
+	sshConn, channels, requests, err := ssh.NewServerConn(wrappedConn, h.getSSHConfig(request, serverVersion))
+	if err != nil {
+		logger.Logrus().Errorf("client: [%s]-> honeypot: [%d] - ssh error: %v", request.IPInfo(), h.listenedPort, err)
+		return
+	}
+	h.HandleSSHConn(sshConn, channels, requests)
+}
 
+func (h *honeypot) getSSHConfig(request *types.SSHRequest, serverVersion string) *ssh.ServerConfig {
+	if h.sshConfig != nil {
+		return h.sshConfig
+	}
+	signer, err := ssh.NewSignerFromKey(h.sshSettings.HostKeyPair().PrivateKey())
+	if err != nil {
+		logger.Logrus().Fatalln("NewSignerFromKey error", err)
+	}
+	config := &ssh.ServerConfig{
+		ServerVersion: serverVersion,
+		NoClientAuth:  h.sshSettings.NoAuth(),
+		MaxAuthTries:  h.sshSettings.MaxAuthTries(),
+	}
+
+	if config.NoClientAuth {
+		config.NoClientAuthCallback = func(metadata ssh.ConnMetadata) (*ssh.Permissions, error) {
+			logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - accepted: NoClientAuth", request.IPInfo(), h.listenedPort)
+			return nil, nil
+		}
+	} else {
+		passwordAuth := h.sshSettings.PasswordAuthStrategy()
+		publicAuth := h.sshSettings.PublicKeyAuthStrategy()
+		if passwordAuth == nil && publicAuth == nil {
+			logger.Logrus().Fatalln("passwordAuth and publicAuth cannot be nil")
+		}
+		if passwordAuth != nil {
+			config.PasswordCallback = func(metadata ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+				pass := string(password)
+				logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - password auth: %s", request.IPInfo(), h.listenedPort, pass)
+				return passwordAuth.Auth(request, pass)
+			}
+		}
+		if publicAuth != nil {
+			config.PublicKeyCallback = func(metadata ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+				fingerprint := ssh.FingerprintLegacyMD5(key)
+				logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - pubkey auth: pre check fingerprint: %s", request.IPInfo(), h.listenedPort, fingerprint)
+				return publicAuth.KeyPreCheck(request, key)
+			}
+			config.VerifiedPublicKeyCallback = func(metadata ssh.ConnMetadata, key ssh.PublicKey, permissions *ssh.Permissions, signatureAlgorithm string) (*ssh.Permissions, error) {
+				fingerprint := ssh.FingerprintLegacyMD5(key)
+				logger.Logrus().Infof("client: [%s]-> honeypot: [%d] - pubkey auth: verify signed data fingerprint: %s", request.IPInfo(), h.listenedPort, fingerprint)
+				return publicAuth.VerifySignedData(request, key, permissions, signatureAlgorithm)
+			}
+		}
+	}
+
+	config.AddHostKey(signer)
+	return config
+}
+func (h *honeypot) HandleSSHConn(sshConn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+	// 丢弃全局请求（keepalive 等）
+	go ssh.DiscardRequests(requests)
 }
 
 // 检查连接权限
@@ -136,8 +211,7 @@ func (h *honeypot) doVersionExchangeShowServerVersion(conn net.Conn, request *ty
 		logger.Logrus().Warningf("client: [%s]-> honeypot: [%d] - rejected", request.IPInfo(), h.listenedPort)
 		return serverVersion, allow
 	}
-	logger.Logrus().Warningf("client: [%s]-> honeypot: [%d] - allow serverVersion: %s", request.IPInfo(), h.listenedPort, serverVersion)
-	err := delayConnResp(conn, serverVersion+"\r\n", sec)
+	err := connResp(conn, serverVersion, sec)
 	if err != nil {
 		logger.Logrus().Warningf("client: [%s]-> honeypot: [%d] - delay error err=%v", request.IPInfo(), h.listenedPort, err)
 		return serverVersion, false

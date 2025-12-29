@@ -33,19 +33,12 @@ func splitDurationRandomly(total time.Duration, parts int) []time.Duration {
 func readClientVersion(conn net.Conn) (clientVersion string, wrapped net.Conn, err error) {
 	reader := bufio.NewReader(conn)
 	var consumed bytes.Buffer
-
-	for {
-		line, err := reader.ReadBytes('\n')
-		if err != nil {
-			return "", nil, err
-		}
-		consumed.Write(line)
-		trimmed := strings.TrimSpace(string(line))
-		if strings.HasPrefix(trimmed, "SSH-") {
-			clientVersion = trimmed
-			break
-		}
+	line, err := reader.ReadBytes('\n')
+	if err != nil {
+		return "", nil, err
 	}
+	clientVersion = strings.TrimRight(string(line), "\r\n")
+	consumed.Write(line)
 	replayReader := io.MultiReader(&consumed, conn)
 	wrapped = &replayConn{
 		Conn:   conn,
@@ -55,7 +48,8 @@ func readClientVersion(conn net.Conn) (clientVersion string, wrapped net.Conn, e
 }
 
 // 延迟发送数据 模拟网络不稳定状态
-func delayConnResp(conn net.Conn, data string, delaySeconds int) error {
+func connResp(conn net.Conn, data string, delaySeconds int) error {
+	data = data + "\r\n"
 	if delaySeconds <= 0 {
 		_, err := conn.Write([]byte(data))
 		return err

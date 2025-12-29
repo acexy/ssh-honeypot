@@ -8,6 +8,7 @@ import (
 type HoneypotHandler interface {
 	ConnAdmission() types.ConnAdmissionComponent
 	VersionExchange() types.VersionExchangeComponent
+	SSHSettings() types.SSHSettingsComponent
 }
 
 type defaultHoneypotHandler struct {
@@ -18,6 +19,10 @@ func (d *defaultHoneypotHandler) ConnAdmission() types.ConnAdmissionComponent {
 }
 func (d *defaultHoneypotHandler) VersionExchange() types.VersionExchangeComponent {
 	return component.NewDefaultVersionExchangeComponent()
+}
+
+func (d *defaultHoneypotHandler) SSHSettings() types.SSHSettingsComponent {
+	return component.NewDefaultSSHSettingsComponent()
 }
 
 // NewDefaultSSHConnHandler 创建一个默认的 HoneypotHandler

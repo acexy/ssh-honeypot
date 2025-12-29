@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"net"
-	"strings"
 )
 
 // replayConn 可重复读的包裹连接
@@ -23,21 +22,11 @@ func (r *replayConn) Read(p []byte) (int, error) {
 // ** 这是一个不稳定的操作，如果ssh核心变更了处理逻辑可能会有风险（概率很低，会不遵循ssh协议标准）
 type sshServerVersionHijackConn struct {
 	net.Conn
-	serverVersionSent bool
-	hijacked          bool
-}
-
-func (s *sshServerVersionHijackConn) WriteServerVersion(version string) error {
-	if !strings.HasSuffix(version, "\n") {
-		version += "\r\n"
-	}
-	s.serverVersionSent = true
-	_, err := s.Conn.Write([]byte(version))
-	return err
+	hijacked bool
 }
 
 func (s *sshServerVersionHijackConn) Write(p []byte) (int, error) {
-	if s.serverVersionSent && !s.hijacked && s.isSSHVersionLine(p) {
+	if !s.hijacked && s.isSSHVersionLine(p) {
 		s.hijacked = true
 		return len(p), nil
 	}
