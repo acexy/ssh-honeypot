@@ -7,6 +7,9 @@
 <img src="https://raw.githubusercontent.com/acexy/ssh-honeypot/refs/heads/main/.github/workflows/type1.gif" />
 <img src="https://raw.githubusercontent.com/acexy/ssh-honeypot/refs/heads/main/.github/workflows/type2.gif" />
 
+### 使用方法
+1. 通过[Releases](https://github.com/acexy/ssh-honeypot/releases)下载最新版本CLI服务
+2. 通过 `go get github.com/acexy/ssh-honeypot` 将其作为一个开源依赖，自定义拓展核心组件
 ---
 
 ## 项目介绍
