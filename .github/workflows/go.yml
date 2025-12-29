@@ -12,7 +12,8 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
+    name: Build (${{ matrix.os }}-${{ matrix.arch }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -45,9 +46,30 @@ jobs:
             ARCH=${{ matrix.arch }} \
             VERSION=${GITHUB_REF_NAME}
 
-      - name: Upload to GitHub Release
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*.tar.gz
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List release files (debug)
+        run: |
+          find dist -type f
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: dist/**/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
