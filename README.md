@@ -4,8 +4,8 @@
 弱口令爆破及恶意交互行为。  
 其核心目标并非提供真实的远程登录能力，而是通过高度拟真的 SSH 协议交互，
 持续采集攻击行为特征，为安全分析与防护策略提供数据支撑。
-<img src="https://raw.githubusercontent.com/acexy/ssh-honeypot/refs/heads/main/.github/workflows/1.gif" />
-<img src="https://raw.githubusercontent.com/acexy/ssh-honeypot/refs/heads/main/.github/workflows/2.gif" />
+<img src="https://raw.githubusercontent.com/acexy/ssh-honeypot/refs/heads/main/.github/workflows/type1.gif" />
+<img src="https://raw.githubusercontent.com/acexy/ssh-honeypot/refs/heads/main/.github/workflows/type2.gif" />
 
 ---
 
