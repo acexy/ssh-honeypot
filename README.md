@@ -1,88 +1,53 @@
-# ssh-Honeypot
+# SSH Honeypot
 
-**SSH Honeypot（SSH 蜜罐）** 是一种主动防御型安全监测技术，用于诱捕并观测针对 SSH 服务的自动化扫描、
-弱口令爆破及恶意交互行为。  
-其核心目标并非提供真实的远程登录能力，而是通过高度拟真的 SSH 协议交互，
-持续采集攻击行为特征，为安全分析与防护策略提供数据支撑。
+SSH Honeypot is a lightweight Go service for observing automated SSH scans, password-guessing attempts, and malicious client behavior. It is a deception and telemetry component, not a real remote-login service.
+
 <img src="https://raw.githubusercontent.com/acexy/ssh-honeypot/refs/heads/main/.github/workflows/type1.gif" />
 <img src="https://raw.githubusercontent.com/acexy/ssh-honeypot/refs/heads/main/.github/workflows/type2.gif" />
 
-### 使用方法
-1. 通过[Releases](https://github.com/acexy/ssh-honeypot/releases)下载最新版本CLI服务
-2. 通过 `go get github.com/acexy/ssh-honeypot` 将其作为一个开源依赖，自定义拓展核心组件
----
+## Current capabilities
 
-## 项目介绍
+- Listens on TCP port `22` by default.
+- Accepts or rejects connections through an admission component.
+- Performs SSH identification exchange and presents an OpenSSH/Ubuntu-style server banner.
+- Applies an immediate or three-second randomized banner response delay.
+- Validates client identification strings beginning with `SSH-`.
+- Supports a pluggable password-authentication strategy; the default accepts the built-in demonstration password.
+- Generates an RSA host key in memory at process startup.
+- Discards global SSH requests and closes the connection after SSH negotiation.
 
-`ssh-Honeypot` 是一个基于 **Golang** 实现的轻量级 SSH 蜜罐程序，通过监听常见的 SSH 端口（默认 `22`），
-在协议层完整模拟标准 SSH Server 行为，使攻击者误以为正在与真实主机进行交互，从而延长其停留时间并暴露更多攻击细节。
+The current implementation does not provide an interactive shell, command execution, SFTP, session recording, persistent event storage, runtime configuration, or graceful shutdown. See [`docs/requirements-analysis.md`](docs/requirements-analysis.md) for the prioritized roadmap.
 
-该项目设计目标明确：
+## Quick start
 
-- **高拟真度**：遵循 SSH 协议规范，对客户端行为保持高度兼容
-- **零侵入性**：不依赖系统账户、不修改主机配置、不产生持久化副作用
-- **低运行成本**：单一可执行文件，易于部署和回收
-- **可策略化控制**：根据来源行为动态调整响应策略
+Download a release from [GitHub Releases](https://github.com/acexy/ssh-honeypot/releases), or run from source:
 
----
+```bash
+go run ./cmd/main.go
+```
 
-## 安全边界说明
+Build a static Linux/amd64 binary:
 
-为了确保蜜罐自身不会成为风险源，`ssh-Honeypot` 明确遵循以下安全原则：
+```bash
+make build
+```
 
-- 不读取或修改系统上的任何 SSH 配置文件  
-  （包括 `sshd_config`、`authorized_keys`、`known_hosts` 等）
+Create a release archive with custom metadata:
 
-- 不使用 PAM、系统用户、shadow 文件或任何真实认证机制
+```bash
+make package VERSION=dev OS=linux ARCH=amd64
+```
 
-- 不创建真实 Shell、不会执行任何系统命令
+The service listens on port `22`, so local or containerized testing may require a disposable port mapping or appropriate privileges.
 
-- 所有 SSH 密钥均为 **进程启动时在内存中动态生成**，不会写入磁盘
+## Extending the service
 
-- 程序退出后不留下任何状态或痕迹
+The `core/types` interfaces define extension points for connection admission, version exchange, SSH settings, and authentication. Implement a custom handler and compose it with `core.NewHoneypot` rather than changing the default components in place.
 
-> 换言之，该蜜罐仅工作在 **网络与内存层面**，不会对主机产生任何持久性影响。
+## Security boundary
 
----
+This project must remain isolated from the host. It does not use system users, PAM, shadow files, or real SSH configuration, and it must never execute shell commands. Keep deployments isolated, avoid exposing the service on production administration ports, and do not commit credentials, private keys, or captured attacker data.
 
-## 行为策略设计
+## License
 
-`ssh-Honeypot` 可根据访问来源、历史行为或随机策略，对连接采取不同的响应方式，以提高攻击成本并增强行为暴露：
-
-### 1. 慢速响应（Tarpit 模式）
-
-- 按字节、按阶段延迟 SSH Banner 或协议响应
-- 显著降低扫描器、爆破工具的效率
-- 增加攻击者资源消耗
-
-### 2. 非确定性异常行为
-
-- 随机中断连接
-- 模拟网络不稳定或服务异常
-- 破坏攻击者自动化流程的稳定性假设
-
-### 3. 虚假登录成功（Fake Success）
-
-- 在协议层返回认证成功
-- 不授予任何真实权限
-- 用于诱导攻击者继续交互并暴露后续行为特征
-
----
-
-## 典型应用场景
-
-- 服务器公网暴露 SSH 场景下的攻击态势监测
-- 安全研究中的弱口令、扫描器行为分析
-- SOC / 蓝队对外部威胁行为的长期采样
-- 作为防御体系中的“延迟与欺骗”组件
-
----
-
-## 设计理念
-
-> **不要与攻击者正面对抗，而是让其持续“相信”并消耗在错误目标上。**
-
-`ssh-Honeypot` 不是防火墙，也不是替代认证系统，
-而是防御体系中用于 **感知、延迟、欺骗** 的一环。
-
----
+See [LICENSE](LICENSE).
